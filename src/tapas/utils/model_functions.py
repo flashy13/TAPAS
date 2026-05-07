@@ -148,6 +148,43 @@ class ModelFunctions:
         return 0.5 * jnp.exp(0.5*(sigma*r)**2 - r*dt) * erfc(arg)
 
     @staticmethod
+    def _kww(delay: jnp.ndarray, tau: float, beta: float, 
+            t0: float, fwhm: float, n_gauss: int = 50) -> jnp.ndarray:
+        """
+        Numerical convolution of a KWW (stretched exponential) with a Gaussian IRF.
+        
+        Parameters
+        ----------
+        delay : jnp.ndarray (N,)
+        tau   : float – characteristic decay time
+        beta  : float – stretching exponent (0 < β ≤ 1)
+        t0    : float – time zero
+        fwhm  : float – IRF width
+        n_gauss : int – number of Gauss-Hermite quadrature points
+        """
+        sigma = fwhm / (2.0 * jnp.sqrt(2.0 * jnp.log(2.0)))
+        
+        # Gauss-Hermite quadrature: ∫ f(x) exp(-x²) dx ≈ Σ wᵢ f(xᵢ)
+        # nodes/weights for ∫ g(t') * IRF(t - t') dt'
+        nodes, w = jnp.array(jnp.polynomial.hermite.hermgauss(n_gauss))
+        
+        # Quadrature abscissas in time: t' = t0 + sqrt(2)*sigma*xᵢ
+        t_shifted = t0 + jnp.sqrt(2.0) * sigma * nodes   # (n_gauss,)
+        
+        # KWW evaluated at (delay - t_shifted), zero for t < 0
+        # delay: (N,), t_shifted: (n_gauss,) → broadcast → (N, n_gauss)
+        dt = delay[:, None] - t_shifted[None, :]          # (N, n_gauss)
+        kww_vals = jnp.where(
+            dt >= 0,
+            jnp.exp(-jnp.power(jnp.maximum(dt, 0.0) / tau, beta)),
+            0.0
+        )
+        
+        # Weighted sum (Gauss-Hermite normalization: divide by sqrt(pi))
+        result = jnp.sum(kww_vals * w[None, :], axis=1) / jnp.sqrt(jnp.pi)
+        return result
+
+    @staticmethod
     def _make_bleach(shift_nm: float, sigma_nm: float, ssa: jnp.ndarray) -> jnp.ndarray:
         '''
         Generate a negative “bleach” template by shifting and optionally broadening
@@ -335,6 +372,128 @@ class ModelFunctions:
             ca_cols = jnp.stack([ca_0, ca_1], axis=1)
 
         c = jnp.concatenate([ca_cols, c], axis=1)
+        # -------- model explicit ground state -----------------------------------------------------
+        if gs:
+            GS = jnp.sum(c[:, ca_order:], axis=1, keepdims=True)
+            if use_bleach:
+                lambda_shift, sigma = theta[-2], theta[-1]
+                bleach_vec = ModelFunctions._make_bleach(lambda_shift, sigma, gs_spec)  # (λ,)
+
+                gsb_full = GS * bleach_vec         # shape (N,λ)
+                alpha = jnp.sum(gsb_full * delA) / jnp.sum(gsb_full * gsb_full)
+
+                delA_minus = delA - alpha * gsb_full
+                eps_exc, *_ = jnp.linalg.lstsq(c, delA_minus, rcond=1e-6)
+
+                delA_cal = c @ eps_exc + alpha * gsb_full
+                eps = jnp.concatenate([eps_exc, (alpha * bleach_vec)[None, :]], axis=0)
+                c = jnp.concatenate([c, GS], axis=1)
+
+            else:
+                c = jnp.concatenate([c, GS], axis=1)
+                eps, *_ = jnp.linalg.lstsq(c, delA, rcond=None)
+                delA_cal = c @ eps
+
+        # -------- fit amplitudes & build residuals ------------------------------------------------
+        else:
+            eps, *_ = jnp.linalg.lstsq(c, delA, rcond=1e-3)
+            delA_cal = c @ eps
+
+        resid = (delA - delA_cal) * jnp.sqrt(weights)
+
+        if output:
+            return delA_cal, c, eps.T          # (N,λ), (N,npool), (λ,npool)
+        return resid.ravel()
+
+    @staticmethod
+    @partial(jit, static_argnames=('Ainf', 'gs', 'use_bleach', 'output'))
+    def model_parallel_kww(theta: jnp.ndarray, delay: jnp.ndarray, delA: jnp.ndarray, Ainf: bool,
+                       weights: jnp.ndarray, gs: bool, use_bleach: bool,  gs_spec: jnp.ndarray, 
+                       output: bool) -> jnp.ndarray | tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+        '''
+        Objective function to be minimized: Parallel convolution and optional ground-state/bleach fitting.
+
+        constructs the model matrix by independently convolving each
+        exponential decay component with the instrument response (EMG), optionally
+        adds an infinite-time offset pool (Ainf), and fits amplitudes (and
+        optionally a bleach component) to the observed ΔA data in one linear solve.
+
+        Parameters
+        ----------
+        theta : jnp.ndarray of shape (P,)
+            Model parameters packed as:
+              - θ[0] = t₀ (time-zero offset)
+              - θ[1] = IRF full-width at half-maximum (FWHM)
+              - θ[2:2+K] = decay time constants τᵢ for each excited pool
+              - if `use_bleach`, final two elements are (bleach_shift_nm, bleach_broadening_nm)
+        delay : jnp.ndarray of shape (N,)
+            Time points of the transient measurement.
+        delA : jnp.ndarray of shape (N, λ)
+            Measured absorbance change at each time and wavelength.
+        Ainf : bool
+            If True, include an infinite-time ground-state pool whose response is
+            the Gaussian CDF of the IRF.
+        weights : jnp.ndarray of shape (N, λ)
+            Weighting matrix for residuals.
+        gs : bool
+            If True, include an explicit ground-state component in the fit.
+        use_bleach : bool
+            If True (and `gs`), model an additional bleach spectrum:
+            shift and broaden `gs_spec` by the last two θ elements.
+        gs_spec : jnp.ndarray of shape (λ, 2)
+            Steady-state absorption spectrum grid (wavelengths and amplitudes)
+            used to build the bleach template.
+        output : bool
+            If True, return `(delA_cal, c_matrix, eps.T)` instead of residuals.
+
+        Returns
+        -------
+        resid_flat : jnp.ndarray
+            Flattened weighted residuals (size N·λ), unless `output=True`.
+        OR
+        (delA_cal, c_matrix, amplitudes) : tuple
+            - delA_cal : (N, λ) fitted model signal
+            - c_matrix : (N, npool) convolution basis (EMG [+ Ainf + GS if used])
+            - amplitudes : (λ, npool) fitted amplitudes and (optional) bleach weights
+
+        Notes
+        -----
+        1. Convolutions: Each decay component is convolved in parallel via
+           EMG = exponential ⨂ Gaussian(IRF).
+        2. Infinite-time pool: If `Ainf`, the CDF of the Gaussian IRF is appended.
+        3. Ground state & bleach: When `gs=True`, a ‘GS’ vector ensures total
+           population conservation. If `use_bleach`, a bleach spectrum is built
+           from `gs_spec`, shifted by Δλ and optionally Gaussian-broadened.
+        4. Linear solve: All columns are concatenated into `c_matrix` and amplitudes
+           are found by least-squares; residuals are then weighted by √weights.
+
+        '''
+        # -------- parameters ----------------------------------------------------------
+        t0  = theta[0]
+
+        if use_bleach:
+            tau_beta_flat = theta[2:-2]
+        else:
+            tau_beta_flat = theta[2:]
+
+        # Entpacken: [τ₁, β₁, τ₂, β₂, ...] → (K, 2)
+        tau_beta = tau_beta_flat.reshape(-1, 2)
+        taus  = tau_beta[:, 0]    # (K,)
+        betas = tau_beta[:, 1]    # (K,)
+
+        # -------- kinetics (KWW ohne IRF) -------------------------------------------------
+        def _kww(tau, beta):
+            dt = delay - t0
+            return jnp.where(dt >= 0,
+                             jnp.exp(-jnp.power(jnp.maximum(dt, 0.0) / tau, beta)),
+                             0.0)
+
+        c = vmap(_kww, in_axes=(0, 0), out_axes=1)(taus, betas)
+
+        if Ainf:
+            cinf = jnp.where(delay >= t0, 1.0, 0.0)
+            c = jnp.concatenate([c, cinf[:, None]], axis=1)
+
         # -------- model explicit ground state -----------------------------------------------------
         if gs:
             GS = jnp.sum(c[:, ca_order:], axis=1, keepdims=True)

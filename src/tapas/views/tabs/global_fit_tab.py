@@ -156,7 +156,7 @@ class GlobalFitTab(QWidget):
         screens custom model for number of lifetimes k (nC_mk_1) and sets the number accordingly'''
         selected_model = self.tw_input.cb_model.currentText()
 
-        if selected_model in ['sequential', 'parallel']:
+        if selected_model in ['sequential', 'parallel', 'parallel_kww']:
             self.tw_input.sb_components.setEnabled(True)
             return
 
@@ -700,6 +700,14 @@ class GlobalFitTab(QWidget):
                     params=params, delay=delay, delA=delA, Ainf=Ainf,  model='sequential',
                     weights=weight_dummy, use_threshold_t0=use_threshold_t0, substeps=substeps, gs=gs, gs_spec=gs_spec,ca_order=ca_order, output=True)
 
+            elif self.tw_input.cb_model.currentText() == 'parallel_kww':
+                fit_results['delA_calc'], fit_results['conc'], fit_results['DAS'] = \
+                    self.global_fit_controller.model_theta_wrapper(
+                        params=params, delay=delay, delA=delA, Ainf=Ainf, model='parallel_kww',
+                        weights=weight_dummy, use_threshold_t0=use_threshold_t0,
+                        substeps=substeps, gs=gs, gs_spec=gs_spec, output=True)
+                fit_results['EAS'] = fit_results['DAS']  # Platzhalter
+
             else:
                 fit_results['delA_calc'], fit_results['conc'], fit_results['SAS'],  = self.global_fit_controller.model_theta_wrapper(
                     params=params, delay=delay, delA=delA, Ainf=Ainf,  model=self.tw_input.cb_model.currentText(),
@@ -902,7 +910,7 @@ class GlobalFitTab(QWidget):
             labels_tex = [f'${label}$' for label in labels]
 
             # -------- plot EAS/DAS & conc ---------------------------------------------------------
-            if self.fit_results['meta']['model'] in ['parallel', 'sequential']:
+            if self.fit_results['meta']['model'] in ['parallel', 'sequential', 'parallel_kww']:
 
                 self.ax_EAS = self.sc.fig.add_subplot(gs[0, 0])
                 self.ax_DAS = self.sc.fig.add_subplot(gs[0, 1])

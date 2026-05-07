@@ -92,7 +92,7 @@ class InputWidget(QWidget):
 
         self.cb_model = QComboBox()
         self.cb_model.addItems(
-            ['parallel', 'sequential', '2C_3k_1', '3C_5k_1', '3C_4k_1', '4C_6k_1', ])
+            ['parallel', 'sequential', '2C_3k_1', '3C_5k_1', '3C_4k_1', '4C_6k_1', 'parallel_kww', ])
         
         self.sp_substeps = QSpinBox(minimum=1, maximum=100, value=6)
         self.cb_t0_def = QComboBox()
@@ -113,6 +113,7 @@ class InputWidget(QWidget):
         self.w_model_preview .setLayout(model_preview_layout)
 
         self.cb_model.currentIndexChanged.connect(self.update_model_preview)
+        self.cb_model.currentIndexChanged.connect(self.update_tab_fit_params)
         self.label_microsteps = QLabel("Microsteps")
         self.sp_substeps.setVisible(False)
         self.label_microsteps.setVisible(False)
@@ -212,6 +213,8 @@ class InputWidget(QWidget):
 
         self.component_labels = ['t0', 'IRF', 'τ1',
                                  'τ2', 'τ3', 'τ4', 'τ5', 'τ6', 'τ7', 'τ8', 'τ9']
+        self.component_labels_kww = ['t0', 'IRF', 'τ1', 'β1', 'τ2', 'β2', 'τ3', 'β3', 'τ4', 'β4', 'τ5', 'β5']
+
         self.tab_fit_params.setColumnCount(4)
         self.tab_fit_params.setMinimumHeight(150)
         header = self.tab_fit_params.horizontalHeader()
@@ -254,7 +257,7 @@ class InputWidget(QWidget):
         # Get current model text from combobox selection
         model = self.cb_model.currentText()
         svg_path = resource_path() / "assets" / f"{model}.svg"
-        if model == 'parallel':
+        if model in ('parallel', 'parallel_kww'):
             self.sp_substeps.setVisible(False)
             self.label_microsteps.setVisible(False)
         else:
@@ -266,26 +269,32 @@ class InputWidget(QWidget):
         self.svg_widget.update()
 
     def update_tab_fit_params(self):
-        row = self.tab_fit_params.rowCount()
-
+        model = self.cb_model.currentText()
         components = self.sb_components.value()
 
-        while row > (components + 2):
+        if model == 'parallel_kww':
+            target_rows = components * 2 + 2  # τ und β pro Komponente
+        else:
+            target_rows = components + 2
 
+        row = self.tab_fit_params.rowCount()
+
+        while row > target_rows:
             self.tab_fit_params.removeRow(row - 1)
-
             row -= 1
-            self.tab_fit_params.setVerticalHeaderLabels(
-                self.component_labels[:])
 
-        while row < (components + 2):
-
+        while row < target_rows:
             self.tab_fit_params.insertRow(row)
-
             row += 1
-            self.tab_fit_params.setVerticalHeaderLabels(
-                self.component_labels[:])
 
+        # Labels setzen
+        if model == 'parallel_kww':
+            labels = ['t0', 'IRF'] + [val for i in range(1, components + 1) 
+                                    for val in (f'τ{i}', f'β{i}')]
+        else:
+            labels = self.component_labels[:target_rows]
+
+        self.tab_fit_params.setVerticalHeaderLabels(labels)
         self.w_fit_params_layout.update()
         self.w_fit_params.adjustSize()
         parent = self.parentWidget()

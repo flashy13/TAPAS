@@ -341,13 +341,13 @@ class GlobalFitController(QObject):
 
             if model == 'parallel':
                 return model_function(
-                    theta=theta, delay=delay, delA=delA, Ainf=Ainf, weights=weights, gs=gs,
-                    use_bleach=use_bleach, gs_spec=gs_spec, ca_order=ca_order,  output=output)
-
+                    theta, delay, delA, Ainf, weights, gs, use_bleach, gs_spec, ca_order, output)
+            elif model == 'parallel_kww':
+                return model_function(
+                    theta, delay, delA, Ainf, weights, gs, use_bleach, gs_spec, output)
             else:
                 return model_function(
-                    theta=theta, delay=delay, delA=delA, Ainf=Ainf, weights=weights,
-                    substeps=substeps, gs=gs, use_bleach=use_bleach, gs_spec=gs_spec, ca_order=ca_order, output=output)
+                    theta, delay, delA, Ainf, weights, substeps, gs, use_bleach, gs_spec, ca_order, output)
 
         self.jacobian_func = jit(jacfwd(
             _jacobian_model_wrapper, argnums=0), static_argnames=('Ainf', 'model', 'use_threshold_t0',
@@ -412,15 +412,18 @@ class GlobalFitController(QObject):
         sigma = jnp.exp(params['__lnsigma'].value)   # lmfit ensures parameter exists
 
         # -------- built XLA compartible theta and calculate residuals -----------------------------
-        theta = GlobalFitController._params_to_theta(params, use_threshold_t0, gs_spec)
+        theta = GlobalFitController._params_to_theta(params, use_threshold_t0, gs_spec, kww=(model=='parallel_kww'))
         model_function = GlobalFitController._get_model_function(model)
         use_bleach = True if gs_spec is not False else False
         if model == 'parallel':
             resid = model_function(theta, delay, delA, Ainf, weights,
-                                   gs, use_bleach, gs_spec, ca_order=ca_order, output=False)
+                                gs, use_bleach, gs_spec, ca_order=ca_order, output=False)
+        elif model == 'parallel_kww':
+            resid = model_function(theta, delay, delA, Ainf, weights,
+                                gs, use_bleach, gs_spec, output=False)
         else:
             resid = model_function(theta, delay, delA, Ainf, weights,
-                                   substeps,  gs, use_bleach, gs_spec, ca_order=ca_order,  output=False)
+                                substeps, gs, use_bleach, gs_spec, ca_order=ca_order, output=False)
 
         # -------- calculate Gaussian log-likelihood with effective sample size --------------------
         ssr = jnp.dot(resid, resid)
@@ -751,7 +754,7 @@ class GlobalFitController(QObject):
                                 y  .astype(np.float32)))
 
     @staticmethod
-    def _params_to_theta(params: Parameters, use_threshold_t0: bool, gs_spec: bool | NDArray = False) -> NDArray:
+    def _params_to_theta(params: Parameters, use_threshold_t0: bool, gs_spec: bool | NDArray = False, kww: bool = False) -> NDArray:
         '''
         converts Parameters object to jax array for the XLA model fitting and returns it as "theta"
 
@@ -787,23 +790,47 @@ class GlobalFitController(QObject):
 
         # -------- return sorted theta vector ------------------------------------------------------
         if '__lnsigma' not in params:
-            # Define the ordering: t1, t2, ..., t_components, then t0 and IRF.
             if gs_spec is False:
-                return jnp.array([t0_centroid, fwhm] +
-                                 [params[f'τ{i}'].value for i in range(1, len(params)-1)])
+                if kww:
+                    n_comp = (len(params) - 2) // 2  # τ und β Paare
+                    return jnp.array([t0_centroid, fwhm] +
+                                    [val for i in range(1, n_comp+1)
+                                    for val in (params[f'τ{i}'].value, params[f'β{i}'].value)])
+                else:
+                    return jnp.array([t0_centroid, fwhm] +   # ← unverändert
+                                    [params[f'τ{i}'].value for i in range(1, len(params)-1)])
             else:
-                return jnp.array([t0_centroid, fwhm] +
-                                 [params[f'τ{i}'].value for i in range(1, len(params)-3)] +
-                                 [gs_shift, gs_sigma])
-
+                if kww:
+                    n_comp = (len(params) - 4) // 2  # -4 wegen t0, IRF, gs_shift, gs_sigma
+                    return jnp.array([t0_centroid, fwhm] +
+                                    [val for i in range(1, n_comp+1)
+                                    for val in (params[f'τ{i}'].value, params[f'β{i}'].value)] +
+                                    [gs_shift, gs_sigma])
+                else:
+                    return jnp.array([t0_centroid, fwhm] +   # ← unverändert
+                                    [params[f'τ{i}'].value for i in range(1, len(params)-3)] +
+                                    [gs_shift, gs_sigma])
         else:
             if gs_spec is False:
-                return jnp.array([t0_centroid, fwhm] +
-                                 [params[f'τ{i}'].value for i in range(1, len(params)-2)])
+                if kww:
+                    n_comp = (len(params) - 3) // 2
+                    return jnp.array([t0_centroid, fwhm] +
+                                    [val for i in range(1, n_comp+1)
+                                    for val in (params[f'τ{i}'].value, params[f'β{i}'].value)])
+                else:
+                    return jnp.array([t0_centroid, fwhm] +   # ← unverändert
+                                    [params[f'τ{i}'].value for i in range(1, len(params)-2)])
             else:
-                return jnp.array([t0_centroid, fwhm] +
-                                 [params[f'τ{i}'].value for i in range(1, len(params)-4)] +
-                                 [gs_shift, gs_sigma])
+                if kww:
+                    n_comp = (len(params) - 5) // 2
+                    return jnp.array([t0_centroid, fwhm] +
+                                    [val for i in range(1, n_comp+1)
+                                    for val in (params[f'τ{i}'].value, params[f'β{i}'].value)] +
+                                    [gs_shift, gs_sigma])
+                else:
+                    return jnp.array([t0_centroid, fwhm] +   # ← unverändert
+                                    [params[f'τ{i}'].value for i in range(1, len(params)-4)] +
+                                    [gs_shift, gs_sigma])
 
     @staticmethod
     def _scale_from_guess(params: Parameters) -> NDArray:
@@ -873,14 +900,16 @@ class GlobalFitController(QObject):
         '''
 
         # Define the ordering: t1, t2, ..., t_components, then t0 and IRF.
-        theta = GlobalFitController._params_to_theta(params, use_threshold_t0, gs_spec)
+        theta = GlobalFitController._params_to_theta(params, use_threshold_t0, gs_spec, kww=(model=='parallel_kww'))
 
         model_function = GlobalFitController._get_model_function(model=model)
         use_bleach = True if gs_spec is not False else False
         if model == 'parallel':
             return model_function(
                 theta, delay, delA, Ainf, weights, gs, use_bleach, gs_spec, ca_order, output)
-
+        elif model == 'parallel_kww':
+            return model_function(
+                theta, delay, delA, Ainf, weights, gs, use_bleach, gs_spec, output)
         else:
             return model_function(
                 theta, delay, delA, Ainf, weights, substeps, gs, use_bleach, gs_spec, ca_order, output)
@@ -969,7 +998,7 @@ class GlobalFitController(QObject):
         fit_results['meta'] = {}
         fit_results['opt_params'] = lm_fit_results.params
         fit_results['theta'] = self._params_to_theta(
-            fit_results['opt_params'], use_threshold_t0, gs_spec)
+            fit_results['opt_params'], use_threshold_t0, gs_spec, kww=(model=='parallel_kww'))
         fit_results['meta']['Ainf'] = Ainf
         fit_results['meta']['model'] = model
         fit_results['meta']['fit_time'] = fit_time
@@ -983,8 +1012,10 @@ class GlobalFitController(QObject):
         fit_results['meta']['ca_order'] = ca_order
         fit_results['meta']['time_zero_convention'] = '5% threshold' if use_threshold_t0 else 'Gaussian centroid'
         fit_results['meta']['use_threshold_t0'] = use_threshold_t0
-        num_comp = (len(fit_results['theta']) -
-                    2) if gs_spec is False else (len(fit_results['theta'])-4)
+        if model == 'parallel_kww':
+            num_comp = (len(fit_results['theta']) - 2) // 2 if gs_spec is False else (len(fit_results['theta']) - 4) // 2
+        else:
+            num_comp = (len(fit_results['theta']) - 2) if gs_spec is False else (len(fit_results['theta']) - 4)
         labels = self.get_component_labels(
             model=fit_results['meta']['model'], Ainf=fit_results['meta']['Ainf'], num=num_comp, gs=gs, ca_order=fit_results['meta']['ca_order'])
         fit_results['meta']['components'] = labels
@@ -1051,7 +1082,11 @@ class GlobalFitController(QObject):
         elif model == '4C_6k_1':
             labels += ['A', 'B', 'C', 'D']
             if Ainf:
-                labels.append('E_{inf}')   
+                labels.append('E_{inf}')
+        elif model == 'parallel_kww':
+            labels += [f'DAS_{i + 1}' for i in range(num)]
+            if Ainf:
+                labels.append('DAS_{inf}')   
         else:
             labels += [f'C_{i + 1}' for i in range(num)]
             if Ainf:
@@ -1226,6 +1261,17 @@ class GlobalFitController(QObject):
                 use_threshold_t0=fit_results['meta']['use_threshold_t0'],
                 substeps=fit_results['meta']['substeps'], gs=fit_results['meta']['gs'],
                 gs_spec=fit_results['meta']['gs_spec'], ca_order=fit_results['meta']['ca_order'], output=True)
+
+        elif fit_results['meta']['model'] == 'parallel_kww':
+            fit_results['delA_calc'], fit_results['conc'], fit_results['DAS'] = \
+                self.model_theta_wrapper(
+                    params=fit_results['opt_params'], delay=self.current_delay, delA=self.current_delA,
+                    Ainf=fit_results['meta']['Ainf'], model='parallel_kww',
+                    weights=fit_results['weight_vector'],
+                    use_threshold_t0=fit_results['meta']['use_threshold_t0'],
+                    substeps=fit_results['meta']['substeps'], gs=fit_results['meta']['gs'],
+                    gs_spec=fit_results['meta']['gs_spec'], output=True)
+            fit_results['EAS'] = fit_results['DAS']  # kein EAS für parallel_kww
 
         else:
             fit_results['delA_calc'], fit_results['conc'], fit_results['SAS'],  = self.model_theta_wrapper(
