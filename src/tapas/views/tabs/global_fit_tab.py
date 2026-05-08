@@ -571,6 +571,7 @@ class GlobalFitTab(QWidget):
         self.config.add_handler('global_w_le_linlog', self.tw_input.le_linlog)
         self.config.add_handler('global_w_sb_components', self.tw_input.sb_components)
         self.config.add_handler('global_w_check_infinte', self.tw_input.check_infinte)
+        self.config.add_handler('global_w_sort_params', self.tw_input.sort_params)
         self.config.add_handler('global_w_cb_model', self.tw_input.cb_model)
         self.config.add_handler('global_w_results_posterior_sb_burn', self.tw_results.sb_burn)
         self.config.add_handler('global_w_results_posterior_sb_init', self.tw_results.sb_init)
@@ -644,7 +645,7 @@ class GlobalFitTab(QWidget):
         if not self.global_fit_controller.verify_rawdata():
             self.global_fit_controller.call_statusbar("error", msg.Error.e05)
             return
-        if self.tw_input.cb_model.currentText() in ['parallel', 'sequential']:
+        if self.tw_input.cb_model.currentText() in ['parallel', 'sequential'] and self.tw_input.sort_params.isChecked():
             self._sort_fit_params_input(components=self.tw_input.sb_components.value())
         try:
             params = self.global_fit_controller.get_params(QtTable=self.tw_input.tab_fit_params)
@@ -746,7 +747,7 @@ class GlobalFitTab(QWidget):
             return
 
         self.global_fit_controller.create_ds(self.ds)  # check if ds is empty and fill with raw_data
-        if self.tw_input.cb_model.currentText() in ['parallel', 'sequential']:
+        if self.tw_input.cb_model.currentText() in ['parallel', 'sequential'] and self.tw_input.sort_params.isChecked():
             self._sort_fit_params_input(components=self.tw_input.sb_components.value())
         try:
             params = self.global_fit_controller.get_params(

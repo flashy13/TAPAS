@@ -434,6 +434,7 @@ class LocalFitTab(QWidget):
         self.config.add_handler('local_w_le_wavelength', self.tw_input.le_wavelength)
         self.config.add_handler('local_w_sb_components', self.tw_input.sb_components)
         self.config.add_handler('local_w_check_infinte', self.tw_input.check_infinte)
+        self.config.add_handler('local_w_sort_params', self.tw_input.sort_params)
         self.config.add_handler('local_w_cb_model', self.tw_input.cb_model)
         self.config.add_handler('local_w_cb_method', self.tw_input.cb_method)
 
@@ -542,7 +543,8 @@ class LocalFitTab(QWidget):
         if not self.local_fit_controller.verify_rawdata():
             self.local_fit_controller.call_statusbar("error", msg.Error.e05)
             return
-        self._sort_fit_params_input(components=self.tw_input.sb_components.value())
+        if self.tw_input.sort_params.isChecked():
+            self._sort_fit_params_input(components=self.tw_input.sb_components.value())
         try:
             params = self.local_fit_controller.get_params(QtTable=self.tw_input.tab_fit_params)
         except ValueError:
@@ -603,7 +605,8 @@ class LocalFitTab(QWidget):
             self.local_fit_controller.call_statusbar("error", msg.Error.e05)
             return
         self.local_fit_controller.create_ds(self.ds)  # check if ds is empty and fill with raw_data
-        self._sort_fit_params_input(components=self.tw_input.sb_components.value())
+        if self.tw_input.sort_params.isChecked():
+            self._sort_fit_params_input(components=self.tw_input.sb_components.value())
         try:
             params = self.local_fit_controller.get_params(QtTable=self.tw_input.tab_fit_params)
         except ValueError:
