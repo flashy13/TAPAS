@@ -24,6 +24,9 @@ from jax.scipy.special import erf, erfc
 from jax import lax, vmap, jit
 from numpy.typing import NDArray
 import logging
+import numpy as np
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -148,41 +151,22 @@ class ModelFunctions:
         return 0.5 * jnp.exp(0.5*(sigma*r)**2 - r*dt) * erfc(arg)
 
     @staticmethod
-    def _kww(delay: jnp.ndarray, tau: float, beta: float, 
-            t0: float, fwhm: float, n_gauss: int = 50) -> jnp.ndarray:
-        """
-        Numerical convolution of a KWW (stretched exponential) with a Gaussian IRF.
-        
-        Parameters
-        ----------
-        delay : jnp.ndarray (N,)
-        tau   : float – characteristic decay time
-        beta  : float – stretching exponent (0 < β ≤ 1)
-        t0    : float – time zero
-        fwhm  : float – IRF width
-        n_gauss : int – number of Gauss-Hermite quadrature points
-        """
-        sigma = fwhm / (2.0 * jnp.sqrt(2.0 * jnp.log(2.0)))
-        
-        # Gauss-Hermite quadrature: ∫ f(x) exp(-x²) dx ≈ Σ wᵢ f(xᵢ)
-        # nodes/weights for ∫ g(t') * IRF(t - t') dt'
-        nodes, w = jnp.array(jnp.polynomial.hermite.hermgauss(n_gauss))
-        
-        # Quadrature abscissas in time: t' = t0 + sqrt(2)*sigma*xᵢ
-        t_shifted = t0 + jnp.sqrt(2.0) * sigma * nodes   # (n_gauss,)
-        
-        # KWW evaluated at (delay - t_shifted), zero for t < 0
-        # delay: (N,), t_shifted: (n_gauss,) → broadcast → (N, n_gauss)
-        dt = delay[:, None] - t_shifted[None, :]          # (N, n_gauss)
+    def _kww_conv(delay: jnp.ndarray, tau: float, beta: float,
+                t0: float, irf: float, n_gauss: int = 50) -> jnp.ndarray:
+        nodes_np, w_np = np.polynomial.hermite.hermgauss(n_gauss)
+        nodes = jnp.array(nodes_np)
+        w     = jnp.array(w_np)
+
+        sigma_irf = irf / (2.0 * jnp.sqrt(2.0 * jnp.log(2.0)))
+        t_shifted = t0 + jnp.sqrt(2.0) * sigma_irf * nodes
+
+        dt = delay[:, None] - t_shifted[None, :]
         kww_vals = jnp.where(
             dt >= 0,
             jnp.exp(-jnp.power(jnp.maximum(dt, 0.0) / tau, beta)),
             0.0
         )
-        
-        # Weighted sum (Gauss-Hermite normalization: divide by sqrt(pi))
-        result = jnp.sum(kww_vals * w[None, :], axis=1) / jnp.sqrt(jnp.pi)
-        return result
+        return jnp.sum(kww_vals * w[None, :], axis=1) / jnp.sqrt(jnp.pi)
 
     @staticmethod
     def _make_bleach(shift_nm: float, sigma_nm: float, ssa: jnp.ndarray) -> jnp.ndarray:
@@ -406,9 +390,9 @@ class ModelFunctions:
         return resid.ravel()
 
     @staticmethod
-    @partial(jit, static_argnames=('Ainf', 'gs', 'use_bleach', 'output'))
+    @partial(jit, static_argnames=('Ainf', 'gs', 'use_bleach','ca_order', 'output'))
     def model_parallel_kww(theta: jnp.ndarray, delay: jnp.ndarray, delA: jnp.ndarray, Ainf: bool,
-                       weights: jnp.ndarray, gs: bool, use_bleach: bool,  gs_spec: jnp.ndarray, 
+                       weights: jnp.ndarray, gs: bool, use_bleach: bool,  gs_spec: jnp.ndarray, ca_order: int,
                        output: bool) -> jnp.ndarray | tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         '''
         Objective function to be minimized: Parallel convolution and optional ground-state/bleach fitting.
@@ -470,6 +454,7 @@ class ModelFunctions:
         '''
         # -------- parameters ----------------------------------------------------------
         t0  = theta[0]
+        irf = theta[1]
 
         if use_bleach:
             tau_beta_flat = theta[2:-2]
@@ -481,18 +466,29 @@ class ModelFunctions:
         taus  = tau_beta[:, 0]    # (K,)
         betas = tau_beta[:, 1]    # (K,)
 
-        # -------- kinetics (KWW ohne IRF) -------------------------------------------------
-        def _kww(tau, beta):
-            dt = delay - t0
-            return jnp.where(dt >= 0,
-                             jnp.exp(-jnp.power(jnp.maximum(dt, 0.0) / tau, beta)),
-                             0.0)
-
-        c = vmap(_kww, in_axes=(0, 0), out_axes=1)(taus, betas)
+        c = vmap(
+            lambda tau, beta: ModelFunctions._kww_conv(delay, tau, beta, t0, irf),
+            in_axes=(0, 0),
+            out_axes=1
+        )(taus, betas)
 
         if Ainf:
-            cinf = jnp.where(delay >= t0, 1.0, 0.0)
+            cinf = ModelFunctions._gaussian_cdf(delay, t0=t0, fwhm=irf)
             c = jnp.concatenate([c, cinf[:, None]], axis=1)
+
+        σ = ModelFunctions._sigma(irf)
+
+        if ca_order == 0:
+            ca_cols = jnp.empty((delay.shape[0], 0), delay.dtype)
+        elif ca_order == 1:
+            ca_0 = ModelFunctions._gaussian_irf(delay, t0, irf)
+            ca_cols = ca_0[:, None]
+        elif ca_order == 2:
+            ca_0 = ModelFunctions._gaussian_irf(delay, t0, irf)
+            ca_1 = σ * ModelFunctions._irf_derivative(delay, t0, irf)
+            ca_cols = jnp.stack([ca_0, ca_1], axis=1)
+
+        c = jnp.concatenate([ca_cols, c], axis=1)
 
         # -------- model explicit ground state -----------------------------------------------------
         if gs:

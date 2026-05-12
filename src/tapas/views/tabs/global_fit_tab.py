@@ -706,7 +706,7 @@ class GlobalFitTab(QWidget):
                     self.global_fit_controller.model_theta_wrapper(
                         params=params, delay=delay, delA=delA, Ainf=Ainf, model='parallel_kww',
                         weights=weight_dummy, use_threshold_t0=use_threshold_t0,
-                        substeps=substeps, gs=gs, gs_spec=gs_spec, output=True)
+                        substeps=substeps, gs=gs, gs_spec=gs_spec, ca_order=ca_order, output=True)
                 fit_results['EAS'] = fit_results['DAS']  # Platzhalter
 
             else:

@@ -344,7 +344,7 @@ class GlobalFitController(QObject):
                     theta, delay, delA, Ainf, weights, gs, use_bleach, gs_spec, ca_order, output)
             elif model == 'parallel_kww':
                 return model_function(
-                    theta, delay, delA, Ainf, weights, gs, use_bleach, gs_spec, output)
+                    theta, delay, delA, Ainf, weights, gs, use_bleach, gs_spec, ca_order, output)
             else:
                 return model_function(
                     theta, delay, delA, Ainf, weights, substeps, gs, use_bleach, gs_spec, ca_order, output)
@@ -420,7 +420,7 @@ class GlobalFitController(QObject):
                                 gs, use_bleach, gs_spec, ca_order=ca_order, output=False)
         elif model == 'parallel_kww':
             resid = model_function(theta, delay, delA, Ainf, weights,
-                                gs, use_bleach, gs_spec, output=False)
+                                gs, use_bleach, gs_spec, ca_order=ca_order, output=False)
         else:
             resid = model_function(theta, delay, delA, Ainf, weights,
                                 substeps, gs, use_bleach, gs_spec, ca_order=ca_order, output=False)
@@ -909,7 +909,7 @@ class GlobalFitController(QObject):
                 theta, delay, delA, Ainf, weights, gs, use_bleach, gs_spec, ca_order, output)
         elif model == 'parallel_kww':
             return model_function(
-                theta, delay, delA, Ainf, weights, gs, use_bleach, gs_spec, output)
+                theta, delay, delA, Ainf, weights, gs, use_bleach, gs_spec, ca_order, output)
         else:
             return model_function(
                 theta, delay, delA, Ainf, weights, substeps, gs, use_bleach, gs_spec, ca_order, output)
@@ -1270,7 +1270,7 @@ class GlobalFitController(QObject):
                     weights=fit_results['weight_vector'],
                     use_threshold_t0=fit_results['meta']['use_threshold_t0'],
                     substeps=fit_results['meta']['substeps'], gs=fit_results['meta']['gs'],
-                    gs_spec=fit_results['meta']['gs_spec'], output=True)
+                    gs_spec=fit_results['meta']['gs_spec'], ca_order=fit_results['meta']['ca_order'], output=True)
             fit_results['EAS'] = fit_results['DAS']  # kein EAS für parallel_kww
 
         else:

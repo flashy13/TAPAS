@@ -1,0 +1,10 @@
+2026-05-12 10:27:39,725 - tapas.app - app - global_exception_handler - ERROR - Unhandled exception occurred\n\n
+Traceback (most recent call last):
+  File "C:\Users\Finn\Documents\GitHub\TAPAS\src\tapas\app.py", line 146, in run
+    from .views.main_window import MainWindow
+  File "C:\Users\Finn\Documents\GitHub\TAPAS\src\tapas\views\main_window.py", line 69, in <module>
+    from ..views.tabs.global_fit_tab import GlobalFitTab
+  File "C:\Users\Finn\Documents\GitHub\TAPAS\src\tapas\views\tabs\global_fit_tab.py", line 709
+    substeps=substeps, gs=gs, gs_spec=gs_spec, ca_order=ca_order output=True)
+                                                        ^^^^^^^^^^^^^^^
+SyntaxError: invalid syntax. Perhaps you forgot a comma?
