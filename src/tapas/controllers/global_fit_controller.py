@@ -1317,7 +1317,7 @@ class GlobalFitController(QObject):
 
         param_items = list(fit_results['opt_params'].items())
 
-        vary_mask = jnp.array([par.vary for name, par in param_items])
+        vary_mask = jnp.array([par.vary for name, par in param_items], dtype=bool)
 
         use_bleach = True if fit_results['meta']['gs_spec'] is not False else False
         jacobian = self.jacobian_func(
