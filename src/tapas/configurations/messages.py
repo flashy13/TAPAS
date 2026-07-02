@@ -315,12 +315,12 @@ class Error:
     
 
 class Labels:
-    wavelength = 'Wavelength (nm)'
-    delay = 'Delay Time (s)'
-    delA = r'$\Delta A$ (mOD)'
-    absorbance = "Absorbance (a.u.)"
-    intensity = "Intensity (a.u.)"
-    delA_norm = r'$\Delta A$ $(norm.)$'
-    delA_error = r'$\Delta A- \Delta A_{calc}$ (mO)'
-    residuals = r'(weighted) residuals (mOD)'
-    norm_residuals = r'Percent residuals (%)'
+    wavelength = 'Wavelength / nm'
+    delay = 'Delay Time'
+    delA = r'$\Delta A$ / mOD'
+    absorbance = "Absorbance / a.u."
+    intensity = "Intensity / a.u."
+    delA_norm = r'$\Delta A$ / norm.'
+    delA_error = r'$\Delta A - \Delta A_{calc}$ / mOD'
+    residuals = r'(weighted) residuals / mOD'
+    norm_residuals = r'Percent residuals / %'

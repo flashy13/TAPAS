@@ -415,7 +415,7 @@ class GlobalFitTab(QWidget):
 
                 lifetime = (fit_dict[fit]['opt_params'][parameter])
                 formatted_lifetime = str(tk.EngFormatter(
-                    places=1, sep="\N{THIN SPACE}")(lifetime) + 's ')
+                    places=1, sep="\N{THIN SPACE}", unit="s")(lifetime))
                 self.tw_results.tab_ds_fits.setCellWidget(
                     row + 3, column, QLabel(formatted_lifetime))
         # adjust rows:

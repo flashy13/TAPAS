@@ -1440,8 +1440,8 @@ class GlobalFitController(QObject):
     def get_emcee_print(self, result: object) -> str:
         ''' formats and returns a string with the emcee fitting result '''
         # formatters
-        value_formatter = tk.EngFormatter(places=1, sep="\N{THIN SPACE}")
-        error_formatter = tk.EngFormatter(places=0, sep="\N{THIN SPACE}")
+        value_formatter = tk.EngFormatter(places=1, sep="\N{THIN SPACE}", unit="s")
+        error_formatter = tk.EngFormatter(places=0, sep="\N{THIN SPACE}", unit="s")
         label_width = 8
 
         # 1) build lists of original vs display names
@@ -1472,11 +1472,11 @@ class GlobalFitController(QObject):
                 hi1 = f"{err_hi1:.2f}"
                 hi2 = f"{err_hi2:.2f}"
             else:
-                lo2 = error_formatter(err_lo2) + "s"
-                lo1 = error_formatter(err_lo1) + "s"
-                med = value_formatter(q_med) + "s"
-                hi1 = error_formatter(err_hi1) + "s"
-                hi2 = error_formatter(err_hi2) + "s"
+                lo2 = error_formatter(err_lo2)
+                lo1 = error_formatter(err_lo1)
+                med = value_formatter(q_med)
+                hi1 = error_formatter(err_hi1)
+                hi2 = error_formatter(err_hi2)
 
             fitting_print += (
                 f"{disp:>8s} "
@@ -1516,8 +1516,8 @@ class GlobalFitController(QObject):
     def get_fitting_print(self, fit_results: dict) -> str:
         ''' formats and returns a string with the fitting result '''
         # -------- unpack results ------------------------------------------------------------------
-        value_formatter = tk.EngFormatter(places=1, sep="\N{THIN SPACE}")
-        error_formatter = tk.EngFormatter(places=0, sep="\N{THIN SPACE}")
+        value_formatter = tk.EngFormatter(places=1, sep="\N{THIN SPACE}", unit="s")
+        error_formatter = tk.EngFormatter(places=0, sep="\N{THIN SPACE}", unit="s")
         jac_condition_number = fit_results['meta']['jac_condition_num']
 
         # -------- print reliability ---------------------------------------------------------------
@@ -1545,7 +1545,7 @@ class GlobalFitController(QObject):
                     value_str = value_formatter(v)
                     error_str = error_formatter(error)
                     fitting_print += (
-                        f"{k}: {value_str}s ± {error_str}s "
+                        f"{k}: {value_str} ± {error_str} "
                         f"({percent_error:.2f}%)\n"
                     )
             if fit_results['meta']['Ainf']:
@@ -1608,7 +1608,7 @@ class GlobalFitController(QObject):
                 else:
                     # Fitted parameter
                     value_str = value_formatter(v)
-                    fitting_print += (f"{k}: {value_str}s\n")
+                    fitting_print += (f"{k}: {value_str}\n")
             if fit_results['meta']['Ainf']:
                 fitting_print += 'Ainf:  True\n'
             else:
@@ -1649,7 +1649,7 @@ class GlobalFitController(QObject):
                         value_str = value_formatter(v)
                         error_str = error_formatter(error)
                         fitting_print += (
-                            f"{k}: {value_str}s ± {error_str}s "
+                            f"{k}: {value_str} ± {error_str} "
                             f"({percent_error:.2f}%)\n"
                         )
                 if fit_results['meta']['Ainf']:

@@ -2098,7 +2098,7 @@ class VisualizeTab(QWidget):
             clip_patch = _add_hide_patches(axes=ax1)
 
             for i, ind in enumerate(ind_delay_found):
-                label = f"{self.sc.delay_formatter0(np.round(self.buffer_dataY[ind], decimals=14))}s"
+                label = f"{self.sc.delay_formatter0(np.round(self.buffer_dataY[ind], decimals=14))}"
                 line, = ax1.plot(
                     self.buffer_dataX, self.buffer_dataZ[ind, :], label=label, color=colorlist[i], zorder=0)
                 line.set_clip_path(clip_patch)
@@ -2279,7 +2279,7 @@ class VisualizeTab(QWidget):
                                 elif j < ca_order + n_kin:
                                     tau_idx = j - ca_order + 1
                                     tau_val = opt_params[f'τ{tau_idx}']
-                                    label = f"{labels_tex[j]} {self.sc.delay_formatter0(tau_val)}s"
+                                    label = f"{labels_tex[j]} {self.sc.delay_formatter0(tau_val)}"
 
                                 else:
                                     label = labels_tex[j]
@@ -2290,7 +2290,7 @@ class VisualizeTab(QWidget):
                         else:
                             if self.tw_local_fit_properties[0].w_show_tau.check_show_tau.isChecked():
                                 ax1.plot([], [], '', alpha=0, label='{labels_tex[0]}' + str(
-                                    self.sc.delay_formatter0(opt_params['τ1']) + 's '))
+                                    self.sc.delay_formatter0(opt_params['τ1'])))
 
                     if self.tw_local_fit_properties[0].w_show_tau.check_show_tau.isChecked() and not self.tw_local_fit_properties[0].w_show_conc.check_show_conc.isChecked():
                         if conc.shape[1] >= 2:
@@ -2301,14 +2301,14 @@ class VisualizeTab(QWidget):
                                 elif j < ca_order + n_kin:
                                     tau_idx = j - ca_order + 1
                                     tau_val = opt_params[f't{tau_idx}']
-                                    label = f"{labels_tex[j]} {self.sc.delay_formatter0(tau_val)}s"
+                                    label = f"{labels_tex[j]} {self.sc.delay_formatter0(tau_val)}"
 
                                 else:
                                     label = labels_tex[j]
 
                                 ax1.plot([], [], '', alpha=0, label=label)
                         else:
-                            label = f"{labels_tex[0]} {self.sc.delay_formatter0(opt_params['t1'])}s"
+                            label = f"{labels_tex[0]} {self.sc.delay_formatter0(opt_params['t1'])}"
                             ax1.plot([], [], '', alpha=0, label=label)
 
                     if self.tw_local_fit_properties[0].w_show_residuals.check_show_residuals.isChecked():
@@ -2763,7 +2763,7 @@ class VisualizeTab(QWidget):
                 clip_patch = _add_hide_patches(axes=ax1)
 
                 for i, ind in enumerate(ind_delay_found):
-                    label = f"{self.sc.delay_formatter0(np.round(self.buffer_dataY[ind], decimals=14))}s"
+                    label = f"{self.sc.delay_formatter0(np.round(self.buffer_dataY[ind], decimals=14))}"
                     line, = ax1.plot(self.buffer_dataX,
                                      delA_calc[ind, :], label=label, color=colorlist[i])
                     line.set_clip_path(clip_patch)

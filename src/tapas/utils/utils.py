@@ -252,7 +252,7 @@ class ClickCursor():
         self.ax_kin.autoscale_view()
 
         # Update legend labels.
-        label_delA = f"{self.delay_formatter(self.Y[idx_Y])} s"
+        label_delA = f"{self.delay_formatter(self.Y[idx_Y])}"
         label_kin = f"{self.nm_formatter_legend(self.X[idx_X])} nm"
         self.interactive_delA_line.set_label(label_delA)
         self.interactive_kin_line.set_label(label_kin)
@@ -285,7 +285,7 @@ class ClickCursor():
         self.ax_kin.relim()
         self.ax_kin.autoscale_view()
 
-        label_delA = f"{self.delay_formatter(self.Y[idx_Y])} s"
+        label_delA = f"{self.delay_formatter(self.Y[idx_Y])}"
         label_kin = f"{self.nm_formatter_legend(self.X[idx_X])} nm"
         self.interactive_delA_line.set_label(label_delA)
         self.interactive_kin_line.set_label(label_kin)
@@ -304,8 +304,8 @@ class PlotCanvas(Canvas):
 
         self.nm_formatter_legend = tk.FuncFormatter(self.nm_formatter_legend)
         self._last_norms: dict[Axes, mcolors.TwoSlopeNorm] = {}
-        self.delay_formatter0 = tk.EngFormatter(places=0, sep="\N{THIN SPACE}")
-        self.delay_formatter1 = tk.EngFormatter(places=1, sep="\N{THIN SPACE}")
+        self.delay_formatter0 = tk.EngFormatter(places=0, sep="\N{THIN SPACE}", unit="s")
+        self.delay_formatter1 = tk.EngFormatter(places=1, sep="\N{THIN SPACE}", unit="s")
         self.emcee_formatter = tk.FuncFormatter(self.avoid_milli)
         self.fig = Figure(figsize=(width, height), dpi=dpi)
 

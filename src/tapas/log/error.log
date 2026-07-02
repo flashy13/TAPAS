@@ -8,3 +8,9 @@ Traceback (most recent call last):
     substeps=substeps, gs=gs, gs_spec=gs_spec, ca_order=ca_order output=True)
                                                         ^^^^^^^^^^^^^^^
 SyntaxError: invalid syntax. Perhaps you forgot a comma?
+2026-07-02 20:37:28,105 - tapas.app - app - global_exception_handler - ERROR - Unhandled exception occurred\n\n
+Traceback (most recent call last):
+  File "/Users/maxmikurov/Documents/git/TAPAS/src/tapas/views/tabs/visualization_tab.py", line 2236, in plot_data
+    delay = fit_dict[ukey]['delay']
+            ~~~~~~~~^^^^^^
+KeyError: '671nm'

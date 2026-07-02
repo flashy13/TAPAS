@@ -377,8 +377,8 @@ class LocalFitController(GlobalFitController):
     def get_fitting_print(self, fit_results:dict) -> str:
         ''' formats and returns a string with the fitting result '''
         # -------- unpack results ------------------------------------------------------------------
-        value_formatter = tk.EngFormatter(places=1, sep="\N{THIN SPACE}")
-        error_formatter = tk.EngFormatter(places=0, sep="\N{THIN SPACE}")
+        value_formatter = tk.EngFormatter(places=1, sep="\N{THIN SPACE}", unit="s")
+        error_formatter = tk.EngFormatter(places=0, sep="\N{THIN SPACE}", unit="s")
         decays = [f'τ{i}' for i in range(1, len(fit_results['opt_params'])-1)]
         decays.append('Ainf')
         amp_list = fit_results['Amp']
@@ -415,7 +415,7 @@ class LocalFitController(GlobalFitController):
                     value_str = value_formatter(v)
                     error_str = error_formatter(error)
                     fitting_print += (
-                        f"{k}: {amp} {value_str}s ± {error_str}s "
+                        f"{k}: {amp} {value_str} ± {error_str} "
                         f"({percent_error:.2f}%)\n"
                     )
             if fit_results['meta']['Ainf']:
@@ -481,7 +481,7 @@ class LocalFitController(GlobalFitController):
                            if k not in ('t0', 'IRF') else '')
 
                     value_str = value_formatter(v)
-                    fitting_print += (f"{k}: {amp} {value_str}s\n")
+                    fitting_print += (f"{k}: {amp} {value_str}\n")
             if fit_results['meta']['Ainf']:
                 fitting_print += 'Ainf: ' + str(round(100 * amp_dict['Ainf'] / amp_norm)) + ' %\n'
             else:
